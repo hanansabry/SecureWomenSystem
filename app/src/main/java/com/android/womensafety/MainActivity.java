@@ -4,17 +4,19 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.PopupMenu;
 import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.hardware.Sensor;
+import android.hardware.SensorManager;
 import android.location.Location;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
-import android.telephony.SmsManager;
 import android.util.Log;
 import android.view.MenuInflater;
 import android.view.MenuItem;
@@ -24,11 +26,14 @@ import android.widget.Toast;
 import com.android.womensafety.authentication.login.LoginActivity;
 import com.android.womensafety.configuration.StepOnePickContact;
 import com.android.womensafety.configuration.StepTwoConfigureMessage;
+import com.android.womensafety.shaking.ShakeDetector;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.material.snackbar.Snackbar;
 import com.google.firebase.auth.FirebaseAuth;
+
+import java.util.Set;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -37,6 +42,11 @@ public class MainActivity extends AppCompatActivity {
     private static final int REQUEST_PERMISSIONS_REQUEST_CODE = 1;
 
     private SmsSender smsSender;
+    private SensorManager sensorManager;
+    private Sensor sensor;
+    private SensorManager mSensorManager;
+    private Sensor mAccelerometer;
+    private ShakeDetector mShakeDetector;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -47,6 +57,43 @@ public class MainActivity extends AppCompatActivity {
         if (!checkPermissions()) {
             requestPermissions();
         }
+
+        detectShaking();
+    }
+
+    private void detectShaking() {
+        // ShakeDetector initialization
+        mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
+        mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        mShakeDetector = new ShakeDetector();
+        mShakeDetector.setOnShakeListener(new ShakeDetector.OnShakeListener() {
+
+            @Override
+            public void onShake(int count) {
+                /*
+                 * The following method, "handleShakeEvent(count):" is a stub //
+                 * method you would use to setup whatever you want done once the
+                 * device has been shook.
+                 */
+//                tvShake.setText("Shake Action is just detected!!");
+                getCurrentLocationAndSendSms();
+                Toast.makeText(MainActivity.this, "Your Location is sent!!!", Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        // Add the following line to register the Session Manager Listener onResume
+        mSensorManager.registerListener(mShakeDetector, mAccelerometer,	SensorManager.SENSOR_DELAY_UI);
+    }
+
+    @Override
+    public void onPause() {
+        // Add the following line to unregister the Sensor Manager onPause
+        mSensorManager.unregisterListener(mShakeDetector);
+        super.onPause();
     }
 
     @SuppressLint("MissingPermission")
@@ -60,8 +107,12 @@ public class MainActivity extends AppCompatActivity {
                         if (location != null) {
                             // Logic to handle location object
                             smsSender = new SmsSender();
-                            String myLocation = "http://maps.google.com/?q=" + location.getLatitude() + "," + location.getLongitude();
-                            smsSender.sendMultiPartSms("01014736447", myLocation, MainActivity.this);
+                            String uri = "http://maps.google.com/?q=" + location.getLatitude() + "," + location.getLongitude();
+                            StringBuilder smsBody = new StringBuilder();
+                            smsBody.append(Uri.parse(uri));
+                            for (String phone : getSelectedContactsPhones()) {
+                                smsSender.sendMultiPartSms(MainActivity.this, smsBody.toString(), phone);
+                            }
                         }
                     }
                 });
@@ -151,10 +202,21 @@ public class MainActivity extends AppCompatActivity {
         getCurrentLocationAndSendSms();
     }
 
+    private Set<String> getSelectedContactsPhones() {
+        SharedPreferences sharedPreferences = getSharedPreferences("CONTACTS", MODE_PRIVATE);
+        return sharedPreferences.getAll().keySet();
+    }
+
     public void sendMessage(View view) {
         smsSender = new SmsSender();
-        smsSender.sendMultiPartSms("01014736447", "help me", this);
-        smsSender.sendMultiPartSms("01014736447", "pleas help me i'm in trouble", this);
+        for (String phone : getSelectedContactsPhones()) {
+            smsSender.sendMultiPartSms(this, getUserMessage(), phone);
+        }
+    }
+
+    private String getUserMessage() {
+        SharedPreferences sharedPreferences = getSharedPreferences(getString(R.string.app_name), Context.MODE_PRIVATE);
+        return sharedPreferences.getString("MSG", null);
     }
 
     public void showSettings(View view) {

@@ -25,7 +25,7 @@ public class SmsSender {
         }
     }
 
-    public void sendMultiPartSms(String phone, final String msg, final Context context) {
+    public void sendMultiPartSms(final Context context, final String msg, String phone) {
         try {
             String SENT = "SMS_SENT";
             String DELIVERED = "SMS_DELIVERED";
@@ -38,11 +38,10 @@ public class SmsSender {
 
 
             //---when the SMS has been sent---
-            context.registerReceiver(new BroadcastReceiver(){
+            context.registerReceiver(new BroadcastReceiver() {
                 @Override
                 public void onReceive(Context arg0, Intent arg1) {
-                    switch (getResultCode())
-                    {
+                    switch (getResultCode()) {
                         case Activity.RESULT_OK:
                             Toast.makeText(context, "SMS sent" + msg,
                                     Toast.LENGTH_SHORT).show();
@@ -68,11 +67,10 @@ public class SmsSender {
             }, new IntentFilter(SENT));
 
             //---when the SMS has been delivered---
-            context.registerReceiver(new BroadcastReceiver(){
+            context.registerReceiver(new BroadcastReceiver() {
                 @Override
                 public void onReceive(Context arg0, Intent arg1) {
-                    switch (getResultCode())
-                    {
+                    switch (getResultCode()) {
                         case Activity.RESULT_OK:
                             Toast.makeText(context, "SMS delivered" + msg,
                                     Toast.LENGTH_SHORT).show();
@@ -88,15 +86,17 @@ public class SmsSender {
 
             SmsManager sms = SmsManager.getDefault();
 
-            ArrayList<String> parts = sms.divideMessage(msg);
+//            ArrayList<String> parts = sms.divideMessage(msg);
+//
+//            ArrayList<PendingIntent> sendList = new ArrayList<>();
+//            sendList.add(sentPI);
+//
+//            ArrayList<PendingIntent> deliverList = new ArrayList<>();
+//            deliverList.add(deliveredPI);
 
-            ArrayList<PendingIntent> sendList = new ArrayList<>();
-            sendList.add(sentPI);
+//            sms.sendMultipartTextMessage(phone, null, parts, sendList, deliverList);
+            sms.sendTextMessage(phone, null, msg, sentPI, deliveredPI);
 
-            ArrayList<PendingIntent> deliverList = new ArrayList<>();
-            deliverList.add(deliveredPI);
-
-            sms.sendMultipartTextMessage(phone, null, parts, sendList, deliverList);
         } catch (Exception e) {
             Log.e("SMS", e.getMessage());
             e.printStackTrace();
